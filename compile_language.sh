@@ -1,0 +1,1 @@
+/home/students/inf/PUBLIC/MRJP/bin/bnfc --haskell --functor -d -m soya.cf && make

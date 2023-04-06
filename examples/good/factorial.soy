@@ -1,0 +1,20 @@
+# default value as argument
+func silniaRekurencyjna(n = 5) {
+    if (n == 1) {
+        return 1;
+    } 
+    else { 
+    	return n * silniaRekurencyjna(n - 1);
+    }
+}
+
+print(silniaRekurencyjna()); # 120
+print(silniaRekurencyjna(3)); # 6
+
+func silniaIteracyjna(n = int) {
+    res = 1;
+    for (i = 2 to n) {
+        res = res * i;
+    }
+    return res;
+}

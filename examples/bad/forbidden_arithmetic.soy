@@ -1,0 +1,14 @@
+a = 3;
+b = "hej";
+c = True;
+d = int; 
+
+_ = a + c; # ERROR: wrong types
+
+_ = b + " co tam"; # ERROR: + sign not defined on strings
+
+f = t(1);
+g = t(2);
+_ = f + g; # ERROR: addition is not specified on tuples/lists
+
+_ = 10 / 0; # ERROR: division by zero!

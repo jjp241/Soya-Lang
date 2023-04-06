@@ -1,0 +1,22 @@
+func g(x = int) {
+    print(x); 
+}
+
+g(10); # 10
+
+func h(x = int) {
+    print(x);
+    return 5;
+}
+
+# Return value is ignored when no left side of assignment
+h(10); # 10
+
+_ = h(10); # 10 - here the return value is also ignored
+
+func i(x = int) {
+    print(x);
+    return;
+}
+
+i(10); # 10

@@ -1,0 +1,84 @@
+--- programs ---
+entrypoints Program ;
+
+Prog.      Program ::= [Stmt] ;
+
+--- statements ---
+Blk.       Block ::= "{" [Stmt] "}" ;
+separator  Stmt "" ;
+Empty.     Stmt ::= ";" ;
+BStmt.     Stmt ::= Block ;
+AssStmt.   Stmt ::= Target "=" Source;
+TargetId.  Target ::= Ident;
+TargetList. Target ::= Ident "[" Expr "]";
+DummyTarget. Target ::= "_";
+TupleTarget. Target ::= "t(" [Target] ")";
+separator   Target "," ;
+SourceExpr. Source ::= Expr;
+SourceType. Source ::= Type;
+VoidCall.  Stmt ::= Ident "(" [Expr] ")" ;
+Ret.       Stmt ::= "return" Expr ";" ;
+VRet.      Stmt ::= "return" ";" ;
+Cond.      Stmt ::= "if" "(" Expr ")" Block  ;
+CondElse.  Stmt ::= "if" "(" Expr ")" Block "else" Block  ;
+While.     Stmt ::= "while" "(" Expr ")" Block ;
+Break.	   Stmt ::= "break" ";" ;
+Cont.	   Stmt ::= "continue" ";" ;
+For.	   Stmt ::= "for" "(" Ident "=" Expr "to" Expr ")" Block ;
+ForEach.   Stmt ::= "for" "(" Ident "in" Expr ")" Block ;
+Append.    Stmt ::= "appendl" "(" Ident "," Expr ")" ";" ; -- appends to the left end of the list
+Pop.       Stmt ::= "popl" "(" Ident ")" ";" ; -- removes element from the left end of the list
+FnDef.	   Stmt ::= "func" Ident "(" [Arg] ")" Block ;
+Print.     Stmt ::= "print" "(" Expr ")" ";" ;
+ArType.	   Arg ::= Ident "=" Type ;
+ArValue.   Arg ::= Ident "=" Expr ;
+ArRef.     Arg ::= "ref" Ident "=" Type ;
+separator  Arg "," ;
+
+--- types ---
+Int.		Type ::= "int" ;
+Str.		Type ::= "str" ;
+Bool.		Type ::= "bool" ;
+List.		Type ::= "[" Type "]";
+Tuple.		Type ::= "(" [Type] ")";
+separator	Type ",";
+
+--- expressions ---
+ENewTuple. Expr6 ::= "t(" [Expr] ")" ; -- creates a tuple out of expressions: (1, 2+2, 5)
+EVar.      Expr6 ::= Ident ;
+ELitInt.   Expr6 ::= Integer ;
+ELitTrue.  Expr6 ::= "True" ;
+ELitFalse. Expr6 ::= "False" ;
+ELitNone.  Expr6 ::= "None" ;
+EApp.      Expr6 ::= Ident "(" [Expr] ")" ;
+EString.   Expr6 ::= String ;
+EGetElem.  Expr6 ::= Ident "[" Expr "]" ; -- gets value from list, tuple or string
+ENewList.  Expr6 ::= "[" [Expr] "]" ; -- creates a list out of expressions: [1, 2+2, 5]
+Len.	   Expr6 ::= "len" "(" Ident ")" ; -- returns length of the list
+EIsNone.   Expr6 ::= "isna" "(" Expr ")";
+Neg.       Expr5 ::= "-" Expr6 ;
+Not.       Expr5 ::= "not" Expr6 ;
+EMul.      Expr4 ::= Expr4 MulOp Expr5 ;
+EAdd.      Expr3 ::= Expr3 AddOp Expr4 ;
+ERel.      Expr2 ::= Expr2 RelOp Expr3 ;
+EAnd.      Expr1 ::= Expr2 "and" Expr1 ;
+EOr.       Expr ::= Expr1 "or" Expr ;
+
+separator  Expr "," ;
+coercions Expr 6 ;
+
+--- operators ---
+Plus.      AddOp ::= "+" ;
+Minus.     AddOp ::= "-" ;
+Times.     MulOp ::= "*" ;
+Div.       MulOp ::= "/" ;
+Mod.       MulOp ::= "%" ;
+LTH.       RelOp ::= "<" ;
+LE.        RelOp ::= "<=" ;
+GTH.       RelOp ::= ">" ;
+GE.        RelOp ::= ">=" ;
+EQU.       RelOp ::= "==" ;
+NE.        RelOp ::= "!=" ;
+
+--- comments ---
+comment    "#" ;

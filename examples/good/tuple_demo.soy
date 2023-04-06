@@ -1,0 +1,22 @@
+func prepareConfig(a = int, b = int, c = int, d = "heja") {
+    sum_ab = (a + b);
+    sum_ac = (a + c);
+    
+    return t(a, b, c, t(sum_ab, sum_ac), t(d, "kuba"));
+}
+
+config = prepareConfig(1, 2, 3);
+print(config); # (1, 2, 3, (3, 4), ("heja", "kuba"))
+
+# underscore to ignore values in tuple
+t(_, _, _, sums, t(p, q)) = config;
+print(sums); # (3, 4)
+print(p); # heja
+
+# initialize empty tuple of given type:
+tup = ((int, int), str);
+
+# function that takes tuple as an argument
+func tupleId(arg = (int, (str, str)), arg2 = t(3, "heja")) {
+    return arg;
+}

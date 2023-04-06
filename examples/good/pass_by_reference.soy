@@ -1,0 +1,35 @@
+func by_value(x = int) {
+    x = x + 10;
+}
+
+a = 10;
+by_value(a);
+print(a); # 10
+
+func by_reference(ref x = int) {
+    x = x + 10;
+}
+
+b = 10;
+by_reference(b);
+print(b); # 20
+
+func by_default_value(x = 10) {
+    x = x + 10;
+    print(x);
+}
+
+by_default_value(); # 20
+
+# List are passed by reference:
+func pass_list(l = [int]) {
+    if(len(l) == 0) {
+        return;
+    }
+    l[0] = 10;
+    return;
+}
+
+l = [1, 2, 3];
+pass_list(l);
+print(l[0]); # 10

@@ -1,0 +1,17 @@
+func power(base = int, exp = int) {
+    
+    func increasePower(n = int) {
+        return n * base;
+    }
+    
+    n = base;
+    
+    while (exp > 1) {
+        n = increasePower(n);
+        exp = exp - 1;
+    }
+
+    return n;
+}
+
+print(power(2, 10)); # 1024
