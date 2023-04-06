@@ -1,2 +1,2 @@
-# Soya-Lang
-Suitable for Vegans!
+# Soya Lang 🌱
+💚 Suitable for Vegans! 💚
