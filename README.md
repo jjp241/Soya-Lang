@@ -97,10 +97,7 @@ Soya has bean (pun intended) created for JPP course @ MIM UW as dynamically type
 
 ### Make it run! :gear:
 
-```bash
-
-```
-
+On `students` run `./compile_language.sh` and then `./parse_checker.sh` 
 
 
 ### Detailed ingredients :notebook:
