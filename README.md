@@ -9,7 +9,7 @@ Soya has bean (pun intended) created for JPP course @ MIM UW as dynamically type
 
 - **Fun and intuitive declarations**
 
-  It makes Soya easily digestible
+  It makes Soya easy to digest
 
   ```PYTHON
   x = 3; # it's a new int!
