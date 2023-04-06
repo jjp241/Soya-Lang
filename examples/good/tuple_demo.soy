@@ -11,6 +11,10 @@ print(config); # (1, 2, 3, (3, 4), ("heja", "kuba"))
 # underscore to ignore values in tuple
 t(_, _, _, sums, t(p, q)) = config;
 print(sums); # (3, 4)
+
+# tuple assignment
+sums[1] = 2;
+print(sums); # (3, 2)
 print(p); # heja
 
 # initialize empty tuple of given type:
