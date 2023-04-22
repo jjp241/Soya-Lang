@@ -8,7 +8,7 @@ for (i = 0 to 5) {
 }
 
 # prints nodes in graf in dfs order
-func dfs(node = int) {
+def dfs(node = int) -> None {
 	visited[node] = True;
     print(node);
     for (u in edges[node]) {

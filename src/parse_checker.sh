@@ -17,7 +17,9 @@ White='\033[0;37m'        # White
 echo "-------------- GOOD EXAMPLES: --------------"
 for file in examples/good/*; do
     # Run Soya/Test command on the file and suppress all additional messages
-    result=$(Soya/Test "$file")
+    result=$(src/TestSoya "$file")
+
+    echo $result
 
     # Check if the compilation was successful or not
     if [[ $result == *"Successful"* ]]; then
@@ -32,7 +34,7 @@ echo ""
 echo "-------------- BAD EXAMPLES: --------------"
 for file in examples/bad/*; do
     # Run Soya/Test command on the file and suppress all additional messages
-    result=$(Soya/Test "$file")
+    result=$(src/TestSoya "$file")
 
     # Check if the compilation was successful or not
     if [[ $result == *"Successful"* ]]; then

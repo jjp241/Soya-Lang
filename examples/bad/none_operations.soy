@@ -3,7 +3,7 @@ b = int;
 
 print(b); # None
 
-ref a; # ERROR - ref allowed only in function arguments
+ref a; # ERROR - ref allowed only in deftion arguments
 
 a == b; # ERROR - arithmetic and comparison is not allowed on None
 a + b; # ERROR
@@ -17,7 +17,7 @@ c = None; # ERROR - undefined type of c
 c = int;
 c = None; # OK
 
-func (a = None) { # ERROR - undefined type of a
+def (a = None) -> int { # ERROR - undefined type of a
     return a;
 }
 

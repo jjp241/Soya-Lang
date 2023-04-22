@@ -1,4 +1,4 @@
-func prepareConfig(a = int, b = int, c = int, d = "heja") {
+def prepareConfig(a = int, b = int, c = int, d = "heja") -> (int, int, int, (int, int), (str, str)) {
     sum_ab = (a + b);
     sum_ac = (a + c);
     
@@ -16,7 +16,7 @@ print(p); # heja
 # initialize empty tuple of given type:
 tup = ((int, int), str);
 
-# function that takes tuple as an argument
-func tupleId(arg = (int, (str, str)), arg2 = t(3, "heja")) {
+# deftion that takes tuple as an argument
+(int, (str, str)) tupleId(arg = (int, (str, str)), arg2 = t(3, "heja")) {
     return arg;
 }

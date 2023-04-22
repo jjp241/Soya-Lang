@@ -1,5 +1,5 @@
 # default value as argument
-func silniaRekurencyjna(n = 5) {
+def silniaRekurencyjna(n = 5) -> int {
     if (n == 1) {
         return 1;
     } 
@@ -11,7 +11,7 @@ func silniaRekurencyjna(n = 5) {
 print(silniaRekurencyjna()); # 120
 print(silniaRekurencyjna(3)); # 6
 
-func silniaIteracyjna(n = int) {
+def silniaIteracyjna(n = int) -> int {
     res = 1;
     for (i = 2 to n) {
         res = res * i;
