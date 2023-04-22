@@ -10,13 +10,17 @@ import qualified AbsSoya as Gram
 
 type Loc = Int
 data Type = Int | Str | Bool | None | Tuple [Type] | List Type | Fun Type [Type] deriving (Eq, Show)
-data Env = Env { env :: Map String Loc, funs :: Map String Gram.FnDef, types :: Map String Type }
+data Function = Function { funName :: String, funArgs :: [Gram.Arg], funRetType :: Type, funBody :: Gram.Block } deriving (Eq, Show)
+data Env = Env { env :: Map String Loc, funs :: Map String Function, types :: Map String Type }
 type Store = Map Loc Val
 
 type InterpretMonad a = ExceptT String (ReaderT Env (StateT Store IO)) a
 
 addLocToEnv :: String -> Loc -> Type -> Env -> Env
 addLocToEnv var loc typ e = e { env = Map.insert var loc (env e), types = Map.insert var typ (types e) }
+
+addFunToEnv :: String -> Function -> Env -> Env
+addFunToEnv var fun e = e { funs = Map.insert var fun (funs e) }
 
 newloc :: InterpretMonad Loc
 newloc = do
@@ -99,6 +103,9 @@ eval (Gram.EVar _ (Gram.Ident id)) = do
         Nothing -> throwError $ "Variable " ++ id ++ " is uninitialized."
     Nothing -> throwError $ "Variable " ++ id ++ " is not in scope."
 
+-- wywołanie funkcji
+-- TODO
+
 --- Execute Statement
 
 execStmt :: [Gram.Stmt] -> InterpretMonad ()
@@ -143,7 +150,58 @@ execStmt ((Gram.AssStmt _ target source):r) = do
                 throwError $ "Cannot assign " ++ (show val) ++ " to variable " ++ var ++ " of type " ++ (show varType)
   
 --- function definition
-execStmt ((Gram.AssStmt _ target source):r) = do
+{-
+  type Stmt = Stmt' BNFC'Position
+data Stmt' a
+    = Empty a
+    | BStmt a (Block' a)
+    | AssStmt a (Target' a) (Source' a)
+    | VoidCall a Ident [Expr' a]
+    | Ret a (Expr' a)
+    | VRet a
+    | Cond a (Expr' a) (Block' a)
+    | CondElse a (Expr' a) (Block' a) (Block' a)
+    | While a (Expr' a) (Block' a)
+    | Break a
+    | Cont a
+    | For a Ident (Expr' a) (Expr' a) (Block' a)
+    | ForEach a Ident (Expr' a) (Block' a)
+    | Append a Ident (Expr' a)
+    | Pop a Ident
+    | DeclFunc a (FnDef' a)
+    | Print a (Expr' a)
+  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable)
+
+type Target = Target' BNFC'Position
+data Target' a
+    = TargetId a Ident
+    | TargetList a Ident (Expr' a)
+    | DummyTarget a
+    | TupleTarget a [Target' a]
+  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable)
+
+type Source = Source' BNFC'Position
+data Source' a = SourceExpr a (Expr' a) | SourceType a (Type' a)
+  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable)
+
+type FnDef = FnDef' BNFC'Position
+data FnDef' a = FuncStmt a Ident [Arg' a] (Type' a) (Block' a)
+  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable)
+-}
+
+-- data Function = Function { funName :: String, funArgs :: [Arg], funRetType :: Type, funBody :: Block } deriving (Eq, Show)
+
+execStmt ((Gram.DeclFunc _ (Gram.FuncStmt _ (Gram.Ident funName) args retType body)):r) = do
+  -- check if function is already defined
+  maybeFun <- asks (Map.lookup funName . funs)
+  case maybeFun of
+    Just _ -> throwError $ "Function " ++ funName ++ " is already defined."
+    Nothing -> do
+      -- create new function
+      let fun = Function { funName = funName, funArgs = args, funRetType = gtypeToType retType, funBody = body } in
+      -- add function to environment
+        local (addFunToEnv funName fun) (execStmt r)
+
 
 showVal :: Val -> InterpretMonad ()
 showVal (VInt x) = do
