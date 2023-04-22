@@ -28,7 +28,8 @@ For.	   Stmt ::= "for" "(" Ident "=" Expr "to" Expr ")" Block ;
 ForEach.   Stmt ::= "for" "(" Ident "in" Expr ")" Block ;
 Append.    Stmt ::= "appendl" "(" Ident "," Expr ")" ";" ; -- appends to the left end of the list
 Pop.       Stmt ::= "popl" "(" Ident ")" ";" ; -- removes element from the left end of the list
-FnDef.	   Stmt ::= "def" Ident "(" [Arg] ")" "->" Type Block ;
+DeclFunc.  Stmt ::= FnDef;
+FuncStmt.  FnDef ::= "def" Ident "(" [Arg] ")" "->" Type Block ;
 Print.     Stmt ::= "print" "(" Expr ")" ";" ;
 ArType.	   Arg ::= Ident "=" Type ;
 ArValue.   Arg ::= Ident "=" Expr ;

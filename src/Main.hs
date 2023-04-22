@@ -1,7 +1,7 @@
 module Main where
 import qualified Interpreter as I 
 import System.Exit
-import qualified Soya as P
+import qualified ParSoya as P
 import System.IO
 import System.Environment
 main :: IO () 

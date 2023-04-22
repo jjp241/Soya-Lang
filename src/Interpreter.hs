@@ -8,11 +8,13 @@ import System.IO
 import qualified AbsSoya as Gram
 
 type Loc = Int
--- dodać reprezentację funkcji do env
-data Env = Env { env :: Map Strin Loc, funs :: Map String Fun }
+data Env = Env { env :: Map String Loc, funs :: Map String Gram.FnDef, types :: Map String Gram.Type }
 type Store = Map Loc Val
 
 type InterpretMonad a = ExceptT String (ReaderT Env (StateT Store IO)) a
+
+addLocToEnv :: String -> Loc -> Env -> Env
+addLocToEnv var loc e = e { env = Map.insert var loc (env e) }
 
 newloc :: InterpretMonad Loc
 newloc = do
@@ -27,12 +29,6 @@ data Val
  | VTuple [Val]
  | VNone -- może wystarczy jeden None jak zapiszę typ w Env
  deriving (Show, Eq)
-
--- defaultowo zawsze na None
-noneValue :: Gram.Type -> InterpretMonad Val
-noneValue (Gram.Int _) = return $ VNoneInt
-noneValue (Gram.Bool _) = return $ VNoneBool
-noneValue (Gram.Str _) = return $ VNoneStr
 
 -- Interpret expressions
 eval :: Gram.Expr -> InterpretMonad Val
@@ -72,9 +68,9 @@ eval (Gram.EMul _ e1 op e2) =
   
 eval (Gram.EVar _ (Gram.Ident id)) = do
   -- TODO: do it better
-  env <- ask
+  maybeloc <- asks (Map.lookup id . env)
   store <- lift get
-  case Map.lookup id env of
+  case maybeloc of
     Just loc -> case Map.lookup loc store of
       Just val -> return val
       Nothing -> throwError $ "Variable " ++ id ++ " is uninitialized."
@@ -94,16 +90,17 @@ execStmt ((Gram.AssStmt _ target source):r) = do
   case target of
     (Gram.TargetId _ (Gram.Ident var)) -> do -- when target is an Identifier
       case source of
-        (Gram.SourceType _ typ) -> do -- when source is type, e.g "int, bool"
-          loc <- newloc
-          val <- noneValue typ
-          modify (Map.insert loc val)
-          local (Map.insert var loc) (execStmt r)
+        (Gram.SourceType _ typ) -> -- when source is type, e.g "int, bool"
+          let val = VNone in do
+            loc <- newloc
+            modify (Map.insert loc val)
+            local (addLocToEnv var loc) (execStmt r)
         (Gram.SourceExpr _ expr) -> do -- when source is expression, e.g "3+3"
           loc <- newloc
           val <- eval expr
           modify (Map.insert loc val)
-          local (Map.insert var loc) (execStmt r)
+          local (addLocToEnv var loc) (execStmt r)
+
 
 showVal :: Val -> InterpretMonad ()
 showVal (VInt x) = do
@@ -118,14 +115,9 @@ showVal (VStr s) = do
   liftIO $ putStrLn s
   return ()
 
-showVal (VNoneInt) = do
-  liftIO $ putStrLn "NoneInt"
+showVal (VNone) = do
+  liftIO $ putStrLn "None"
   return ()
-
-showVal (VNoneStr) = do
-  liftIO $ putStrLn "NoneStr"
-  return ()
-
 
 -- - Execute Program
 execProgram :: Gram.Program -> InterpretMonad ()
@@ -134,7 +126,8 @@ execProgram (Gram.Prog pos stmts) = execStmt stmts
 --- Run program
 runInterpreter :: Gram.Program -> IO ()
 runInterpreter prog =
-    let (env, st) = (fromList [], fromList [])
+    let (env, st) = (Env { env = fromList [], funs = fromList [], types = fromList [] },
+                     fromList [])
     in do
       (res, a) <- runStateT (runReaderT (runExceptT (execProgram prog)) env) st;
       case res of
