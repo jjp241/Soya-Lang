@@ -10,8 +10,8 @@ import qualified AbsSoya as Gram
 
 type Loc = Int
 data Type = Int | Str | Bool | None | Tuple [Type] | List Type | Fun Type [Type] deriving (Eq, Show)
-data Function = Function { funName :: String, funArgs :: [Gram.Arg], funRetType :: Type, funBody :: Gram.Block } deriving (Eq, Show)
-data Env = Env { env :: Map String Loc, funs :: Map String Function, types :: Map String Type }
+data Function = Function { funName :: String, funArgs :: [Gram.Arg], funRetType :: Type, funBody :: Gram.Block, declEnv :: Env} deriving (Eq, Show)
+data Env = Env { env :: Map String Loc, funs :: Map String Function, types :: Map String Type } deriving (Eq, Show)
 type Store = Map Loc Val
 
 type InterpretMonad a = ExceptT String (ReaderT Env (StateT Store IO)) a
@@ -21,6 +21,10 @@ addLocToEnv var loc typ e = e { env = Map.insert var loc (env e), types = Map.in
 
 addFunToEnv :: String -> Function -> Env -> Env
 addFunToEnv var fun e = e { funs = Map.insert var fun (funs e) }
+
+addValToStore :: Loc -> Val -> Store -> Store
+addValToStore loc val s = Map.insert loc val s
+
 
 newloc :: InterpretMonad Loc
 newloc = do
@@ -64,6 +68,29 @@ eval (Gram.ELitInt _ integer) = return (VInt integer)
 eval (Gram.ELitTrue _) = return (VBool True)
 eval (Gram.ELitFalse _) = return (VBool False)
 eval (Gram.EString _ string) = return (VStr string)
+eval (Gram.ELitNone _) = return VNone
+
+eval (Gram.ERel _ e1 op e2) = do
+  res1 <- eval e1
+  res2 <- eval e2
+  case (res1, res2) of
+    (VInt ev1, VInt ev2) -> 
+      case op of
+        Gram.LTH _ -> return $ VBool (ev1 < ev2)
+        Gram.LE _ -> return $ VBool (ev1 <= ev2)
+        Gram.GTH _ -> return $ VBool (ev1 > ev2)
+        Gram.GE _ -> return $ VBool (ev1 >= ev2)
+        Gram.EQU _ -> return $ VBool (ev1 == ev2)
+        Gram.NE _ -> return $ VBool (ev1 /= ev2)
+    (VBool ev1, VBool ev2) -> 
+      case op of
+        Gram.LTH _ -> return $ VBool (ev1 < ev2)
+        Gram.LE _ -> return $ VBool (ev1 <= ev2)
+        Gram.GTH _ -> return $ VBool (ev1 > ev2)
+        Gram.GE _ -> return $ VBool (ev1 >= ev2)
+        Gram.EQU _ -> return $ VBool (ev1 == ev2)
+        Gram.NE _ -> return $ VBool (ev1 /= ev2)
+    _ -> throwError $ "Cannot compare non-integers and non-strings"
 
 eval (Gram.EAdd _ e1 op e2) = do
   res1 <- eval e1
@@ -106,11 +133,71 @@ eval (Gram.EVar _ (Gram.Ident id)) = do
 -- wywołanie funkcji
 -- TODO
 
+eval (Gram.EApp l (Gram.Ident funname) exprs) = do
+  maybeFun <- asks (Map.lookup funname . funs)
+  case maybeFun of
+    Nothing -> throwError $ "Function " ++ funname ++ " is not defined."
+    Just fun -> do
+      let args = funArgs fun
+      let retType = funRetType fun
+      let body = funBody fun
+      let dEnv = declEnv fun
+      -- If there are less arguments than parameters, fill the rest with None
+      let exprs' = exprs ++ (Prelude.replicate (length args - length exprs) (Gram.ELitNone l))
+      newEnv <- addArgsToEnv (zip args exprs')
+      -- join newEnv with dEnv and run execBlock
+      let joinedEnv = Env { env = Map.union (env newEnv) (env dEnv),
+                            types = Map.union (types newEnv) (types dEnv),
+                            funs = Map.union (funs newEnv) (funs dEnv) }
+      let joinedEnv' = addFunToEnv funname (Function funname args retType body newEnv) joinedEnv
+      result <- local (const joinedEnv') (execBlock body)
+      return result
+      where
+        addArgsToEnv :: [(Gram.Arg, Gram.Expr)] -> InterpretMonad Env
+        addArgsToEnv [] = return Env { env = fromList [], types = fromList [], funs = fromList [] }
+        addArgsToEnv ((Gram.ArType _ (Gram.Ident id) gtype, expr):r) = do
+          loc <- newloc
+          val <- eval expr
+          -- add loc-value to store
+          modify (addValToStore loc val)
+          env <- addArgsToEnv r
+          return (addLocToEnv id loc (gtypeToType gtype) env)
+        addArgsToEnv ((Gram.ArValue _ (Gram.Ident id) defExpr, givenExpr):r) = do
+          loc <- newloc
+          val <- eval givenExpr -- TODO trzeba sprawdzic typy
+          defVal <- eval defExpr
+          let typ = typeof defVal
+          if val == VNone
+            then do
+              modify (addValToStore loc defVal)
+            else do
+              modify (addValToStore loc val)
+          env <- addArgsToEnv r
+          return (addLocToEnv id loc typ env)
+        addArgsToEnv ((Gram.ArRef _ (Gram.Ident id) gtype, expr):r) = do
+          case expr of
+            (Gram.EVar _ (Gram.Ident id')) -> do
+              maybeLoc <- asks (Map.lookup id' . env) -- TODO: dużo błędów do sprawdzenia
+              maybeType <- asks (Map.lookup id' . types)
+              case (maybeLoc, maybeType) of
+                (Just loc, Just typ) -> do
+                  env <- addArgsToEnv r
+                  return (addLocToEnv id loc typ env)
+                _ -> throwError $ "Passed variable " ++ id' ++ " is not in scope."
+            _ -> throwError "Cannot pass non-identifier as reference argument"
+
 --- Execute Statement
 
-execStmt :: [Gram.Stmt] -> InterpretMonad ()
-execStmt [] = return ()
+execBlock :: Gram.Block -> InterpretMonad Val
+execBlock (Gram.Blk _ stmts) = execStmt stmts
+
+execStmt :: [Gram.Stmt] -> InterpretMonad Val
+execStmt [] = return VNone
 execStmt ((Gram.Empty _):r) = execStmt r
+
+execStmt ((Gram.Ret _ expr):r) = do
+  result <- eval expr
+  return result
 
 execStmt ((Gram.Print _ e):r) = do
   result <- eval e
@@ -148,7 +235,19 @@ execStmt ((Gram.AssStmt _ target source):r) = do
                 execStmt r
               else
                 throwError $ "Cannot assign " ++ (show val) ++ " to variable " ++ var ++ " of type " ++ (show varType)
-  
+    (Gram.DummyTarget _) -> do -- when target is DummyTarget
+      case source of
+        (Gram.SourceType _ typ) -> -- when source is type, e.g "int, bool"
+          throwError $ "Cannot assign type to dummy target"
+        (Gram.SourceExpr _ expr) -> do -- when source is expression, e.g "3+3"
+          eval expr
+          execStmt r
+
+
+execStmt ((Gram.BStmt _ block):r) = do
+  execBlock block
+  execStmt r
+
 --- function definition
 {-
   type Stmt = Stmt' BNFC'Position
@@ -189,6 +288,21 @@ data FnDef' a = FuncStmt a Ident [Arg' a] (Type' a) (Block' a)
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable)
 -}
 
+-- Cond
+execStmt ((Gram.Cond _ expr block):r) = do
+  val <- eval expr
+  case val of
+    (VBool True) -> execBlock block
+    (VBool False) -> execStmt r
+    _ -> throwError "Condition is not a boolean" 
+
+execStmt ((Gram.CondElse _ expr block1 block2):r) = do
+  val <- eval expr
+  case val of
+    (VBool True) -> execBlock block1
+    (VBool False) -> execBlock block2
+    _ -> throwError "Condition is not a boolean"
+
 -- data Function = Function { funName :: String, funArgs :: [Arg], funRetType :: Type, funBody :: Block } deriving (Eq, Show)
 
 execStmt ((Gram.DeclFunc _ (Gram.FuncStmt _ (Gram.Ident funName) args retType body)):r) = do
@@ -198,9 +312,11 @@ execStmt ((Gram.DeclFunc _ (Gram.FuncStmt _ (Gram.Ident funName) args retType bo
     Just _ -> throwError $ "Function " ++ funName ++ " is already defined."
     Nothing -> do
       -- create new function
-      let fun = Function { funName = funName, funArgs = args, funRetType = gtypeToType retType, funBody = body } in
+      -- dEnv should be initialized as current environment
+      dEnv <- ask
+      let fun = Function { funName = funName, funArgs = args, funRetType = gtypeToType retType, funBody = body, declEnv = dEnv }
       -- add function to environment
-        local (addFunToEnv funName fun) (execStmt r)
+      local (addFunToEnv funName fun) (execStmt r)
 
 
 showVal :: Val -> InterpretMonad ()
@@ -221,7 +337,7 @@ showVal (VNone) = do
   return ()
 
 -- - Execute Program
-execProgram :: Gram.Program -> InterpretMonad ()
+execProgram :: Gram.Program -> InterpretMonad Val
 execProgram (Gram.Prog pos stmts) = execStmt stmts
 
 --- Run program

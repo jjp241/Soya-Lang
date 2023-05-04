@@ -29,8 +29,36 @@ print(c);
 # f = "hej";
 
 def dodaj(a = int, b = int) -> int {
+    print("Dodawanko:");
     return a + b;
 }
 
 print("Wywołanie funkcji dodaj:");
 print(dodaj(2, 3));
+
+print("przekazanie przez referencję:");
+
+f = 5;
+
+def dodaj_jeden(ref a = int) -> int {
+    print("dodaj_jeden:");
+    a = a + 1;
+}
+
+print("f przed dodaj_jeden:");
+print(f);
+_ = dodaj_jeden(f);
+print("f po dodaj_jeden:");
+print(f);
+
+print("rekurencyjny fibonacci:");
+
+def fib(n = int) -> int {
+    if (n < 2) {
+        return n;
+    }
+    return fib(n - 1) + fib(n - 2);
+}
+
+print("fib(10):");
+print(fib(10));
