@@ -61,7 +61,7 @@ gtypeToType (Gram.List _ t) = List (gtypeToType t)
 gtypeToType (Gram.Tuple _ types) = Tuple (Prelude.map gtypeToType types)
 
 
--- Interpret expressions
+--------- EXPRESSIONS ---------
 eval :: Gram.Expr -> InterpretMonad Val
 
 eval (Gram.ELitInt _ integer) = return (VInt integer)
@@ -90,7 +90,7 @@ eval (Gram.ERel _ e1 op e2) = do
         Gram.GE _ -> return $ VBool (ev1 >= ev2)
         Gram.EQU _ -> return $ VBool (ev1 == ev2)
         Gram.NE _ -> return $ VBool (ev1 /= ev2)
-    _ -> throwError $ "Cannot compare non-integers and non-strings"
+    _ -> throwError $ "Cannot compare non-integers and non-bools"
 
 eval (Gram.EAdd _ e1 op e2) = do
   res1 <- eval e1
@@ -131,8 +131,6 @@ eval (Gram.EVar _ (Gram.Ident id)) = do
     Nothing -> throwError $ "Variable " ++ id ++ " is not in scope."
 
 -- wywołanie funkcji
--- TODO
-
 eval (Gram.EApp l (Gram.Ident funname) exprs) = do
   maybeFun <- asks (Map.lookup funname . funs)
   case maybeFun of
@@ -186,7 +184,8 @@ eval (Gram.EApp l (Gram.Ident funname) exprs) = do
                 _ -> throwError $ "Passed variable " ++ id' ++ " is not in scope."
             _ -> throwError "Cannot pass non-identifier as reference argument"
 
---- Execute Statement
+
+--------- STATEMENTS ---------
 
 execBlock :: Gram.Block -> InterpretMonad Val
 execBlock (Gram.Blk _ stmts) = execStmt stmts
@@ -195,9 +194,12 @@ execStmt :: [Gram.Stmt] -> InterpretMonad Val
 execStmt [] = return VNone
 execStmt ((Gram.Empty _):r) = execStmt r
 
+-- Assume, that return is always inside function
 execStmt ((Gram.Ret _ expr):r) = do
   result <- eval expr
   return result
+
+execStmt ((Gram.VRet _):r) = return VNone
 
 execStmt ((Gram.Print _ e):r) = do
   result <- eval e
@@ -243,50 +245,9 @@ execStmt ((Gram.AssStmt _ target source):r) = do
           eval expr
           execStmt r
 
-
 execStmt ((Gram.BStmt _ block):r) = do
   execBlock block
   execStmt r
-
---- function definition
-{-
-  type Stmt = Stmt' BNFC'Position
-data Stmt' a
-    = Empty a
-    | BStmt a (Block' a)
-    | AssStmt a (Target' a) (Source' a)
-    | VoidCall a Ident [Expr' a]
-    | Ret a (Expr' a)
-    | VRet a
-    | Cond a (Expr' a) (Block' a)
-    | CondElse a (Expr' a) (Block' a) (Block' a)
-    | While a (Expr' a) (Block' a)
-    | Break a
-    | Cont a
-    | For a Ident (Expr' a) (Expr' a) (Block' a)
-    | ForEach a Ident (Expr' a) (Block' a)
-    | Append a Ident (Expr' a)
-    | Pop a Ident
-    | DeclFunc a (FnDef' a)
-    | Print a (Expr' a)
-  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable)
-
-type Target = Target' BNFC'Position
-data Target' a
-    = TargetId a Ident
-    | TargetList a Ident (Expr' a)
-    | DummyTarget a
-    | TupleTarget a [Target' a]
-  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable)
-
-type Source = Source' BNFC'Position
-data Source' a = SourceExpr a (Expr' a) | SourceType a (Type' a)
-  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable)
-
-type FnDef = FnDef' BNFC'Position
-data FnDef' a = FuncStmt a Ident [Arg' a] (Type' a) (Block' a)
-  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable)
--}
 
 -- Cond
 execStmt ((Gram.Cond _ expr block):r) = do
@@ -303,21 +264,33 @@ execStmt ((Gram.CondElse _ expr block1 block2):r) = do
     (VBool False) -> execBlock block2
     _ -> throwError "Condition is not a boolean"
 
--- data Function = Function { funName :: String, funArgs :: [Arg], funRetType :: Type, funBody :: Block } deriving (Eq, Show)
-
 execStmt ((Gram.DeclFunc _ (Gram.FuncStmt _ (Gram.Ident funName) args retType body)):r) = do
   -- check if function is already defined
   maybeFun <- asks (Map.lookup funName . funs)
   case maybeFun of
     Just _ -> throwError $ "Function " ++ funName ++ " is already defined."
     Nothing -> do
-      -- create new function
-      -- dEnv should be initialized as current environment
       dEnv <- ask
       let fun = Function { funName = funName, funArgs = args, funRetType = gtypeToType retType, funBody = body, declEnv = dEnv }
       -- add function to environment
       local (addFunToEnv funName fun) (execStmt r)
 
+
+execStmt ((Gram.DeclFunc _ (Gram.VoidFuncStmt _ (Gram.Ident funName) args body)):r) = do
+  -- check if function is already defined
+  maybeFun <- asks (Map.lookup funName . funs)
+  case maybeFun of
+    Just _ -> throwError $ "Function " ++ funName ++ " is already defined."
+    Nothing -> do
+      dEnv <- ask
+      let fun = Function { funName = funName, funArgs = args, funRetType = None, funBody = body, declEnv = dEnv }
+      -- add function to environment
+      local (addFunToEnv funName fun) (execStmt r)
+
+
+execStmt ((Gram.VoidCall pos (Gram.Ident funName) exprs):r) = do
+  _ <- eval (Gram.EApp pos (Gram.Ident funName) exprs)
+  execStmt r
 
 showVal :: Val -> InterpretMonad ()
 showVal (VInt x) = do

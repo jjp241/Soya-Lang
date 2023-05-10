@@ -30,6 +30,7 @@ Append.    Stmt ::= "appendl" "(" Ident "," Expr ")" ";" ; -- appends to the lef
 Pop.       Stmt ::= "popl" "(" Ident ")" ";" ; -- removes element from the left end of the list
 DeclFunc.  Stmt ::= FnDef;
 FuncStmt.  FnDef ::= "def" Ident "(" [Arg] ")" "->" Type Block ;
+VoidFuncStmt.  FnDef ::= "def" Ident "(" [Arg] ")" Block ;
 Print.     Stmt ::= "print" "(" Expr ")" ";" ;
 ArType.	   Arg ::= Ident "=" Type ;
 ArValue.   Arg ::= Ident "=" Expr ;

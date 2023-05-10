@@ -1,5 +1,6 @@
 module Main where
 import qualified Interpreter as I 
+import qualified TypeChecker as T
 import System.Exit
 import qualified ParSoya as P
 import System.IO
@@ -18,4 +19,7 @@ run :: String -> IO ()
 run prog = do
     case P.pProgram $ P.myLexer prog of 
       Left s -> hPutStrLn stderr s
-      Right program -> I.runInterpreter program
+      Right program -> 
+        case T.runChecker program of
+            Left err -> hPutStrLn stderr err
+            Right _ -> I.runInterpreter program
