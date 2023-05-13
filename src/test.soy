@@ -40,14 +40,14 @@ print("przekazanie przez referencję:");
 
 f = 5;
 
-def dodaj_jeden(ref a = int) -> int {
+def dodaj_jeden(ref a = int) {
     print("dodaj_jeden:");
     a = a + 1;
 }
 
 print("f przed dodaj_jeden:");
 print(f);
-_ = dodaj_jeden(f);
+dodaj_jeden(f);
 print("f po dodaj_jeden:");
 print(f);
 
@@ -62,3 +62,18 @@ def fib(n = int) -> int {
 
 print("fib(10):");
 print(fib(10));
+
+def func2() {
+    print("hej");
+}
+
+def func1() {
+    
+    def func2() {
+        print("kup se klej");
+    }
+
+    func2();
+}
+
+func1();

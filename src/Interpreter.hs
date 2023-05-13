@@ -37,7 +37,10 @@ data Val
  | VBool Bool
  | VStr String
  | VTuple [Val]
- | VNone -- może wystarczy jeden None jak zapiszę typ w Env
+ | VList [Val]
+ | VNone
+ | WasBreak
+ | WasContinue
  deriving (Show, Eq)
 
 -- Unpack Val
@@ -51,6 +54,7 @@ typeof (VBool _) = Bool
 typeof (VStr _) = Str
 typeof (VTuple types) = Tuple (Prelude.map typeof types)
 typeof (VNone) = None
+typeof (VList types) = List (typeof (Prelude.head types))
 
 -- Gram.Type -> Type
 gtypeToType :: Gram.Type -> Type
@@ -185,6 +189,24 @@ eval (Gram.EApp l (Gram.Ident funname) exprs) = do
             _ -> throwError "Cannot pass non-identifier as reference argument"
 
 
+eval (Gram.ENewList _ exprs) = do
+  vals <- Prelude.mapM eval exprs
+  return (VList vals)
+
+eval (Gram.EGetElem _ (Gram.Ident var) expr) = do
+  vltup <- asks (Map.lookup var . env)
+  case vltup of
+    Just loc -> do
+      val <- gets (Map.lookup loc)
+      case val of
+        Just (VList l) -> do
+          (VInt i) <- eval expr
+          if i < 0 || i >= fromIntegral (Prelude.length l)
+            then throwError $ "Index " ++ (show i) ++ " out of range."
+            else return (l !! (fromIntegral i))
+        _ -> throwError $ "Variable " ++ var ++ " is not a list."
+    Nothing -> throwError $ "Variable " ++ var ++ " is not in scope."
+
 --------- STATEMENTS ---------
 
 execBlock :: Gram.Block -> InterpretMonad Val
@@ -204,46 +226,42 @@ execStmt ((Gram.VRet _):r) = return VNone
 execStmt ((Gram.Print _ e):r) = do
   result <- eval e
   showVal result
+  -- add newline
+  liftIO $ putStrLn ""
   execStmt r
 
 execStmt ((Gram.AssStmt _ target source):r) = do
-  case target of
-    (Gram.TargetId _ (Gram.Ident var)) -> do -- when target is an Identifier
-      -- check if it is in scope
-      maybeloc <- asks (Map.lookup var . env)
-      case maybeloc of
-        Nothing ->  -- Not in scope - declaration!
-          case source of
-            (Gram.SourceType _ gtype) -> do-- when source is type, e.g "int, bool"
+  -- right side: type => Declaration of new variable
+  case source of
+    (Gram.SourceType _ gtype) -> do 
+      case target of
+        (Gram.TargetId _ (Gram.Ident var)) -> do -- when target is an Identifier
+          loc <- newloc
+          modify (Map.insert loc VNone)
+          local (addLocToEnv var loc (gtypeToType gtype)) (execStmt r)
+        (Gram.DummyTarget _) -> do -- when target is DummyTarget
+          throwError $ "Cannot assign type to dummy target"
+
+    (Gram.SourceExpr _ expr) -> do 
+      val <- eval expr
+      case target of
+        (Gram.TargetId _ (Gram.Ident var)) -> do -- when target is an Identifier
+          -- check if it is in scope
+          maybeloc <- asks (Map.lookup var . env)
+          case maybeloc of
+            Nothing -> do -- Not in scope - declaration!
               loc <- newloc
-              modify (Map.insert loc VNone)
-              local (addLocToEnv var loc (gtypeToType gtype)) (execStmt r)
-            (Gram.SourceExpr _ expr) -> do -- when source is expression, e.g "3+3"
-              loc <- newloc
-              val <- eval expr
               modify (Map.insert loc val)
               local (addLocToEnv var loc (typeof val)) (execStmt r)
-        -- In scope - assignment!
-        Just loc ->
-          case source of
-            (Gram.SourceType _ typ) -> -- when source is type, e.g "int, bool"
-              throwError $ "Cannot assign type to visible variable " ++ var
-            (Gram.SourceExpr _ expr) -> do -- when source is expression, e.g "3+3"
-              varType <- asks (fromJust . Map.lookup var . types)
-              val <- eval expr
-              -- check if type of val is the same as type of val
-              if (varType == typeof val) then do
-                modify (Map.insert loc val)
-                execStmt r
-              else
-                throwError $ "Cannot assign " ++ (show val) ++ " to variable " ++ var ++ " of type " ++ (show varType)
-    (Gram.DummyTarget _) -> do -- when target is DummyTarget
-      case source of
-        (Gram.SourceType _ typ) -> -- when source is type, e.g "int, bool"
-          throwError $ "Cannot assign type to dummy target"
-        (Gram.SourceExpr _ expr) -> do -- when source is expression, e.g "3+3"
+          
+            Just loc -> do -- in scope - assignment!
+              modify (Map.insert loc val)
+              execStmt r
+      
+        (Gram.DummyTarget _) -> do -- when target is DummyTarget
           eval expr
           execStmt r
+
 
 execStmt ((Gram.BStmt _ block):r) = do
   execBlock block
@@ -255,59 +273,103 @@ execStmt ((Gram.Cond _ expr block):r) = do
   case val of
     (VBool True) -> execBlock block
     (VBool False) -> execStmt r
-    _ -> throwError "Condition is not a boolean" 
 
 execStmt ((Gram.CondElse _ expr block1 block2):r) = do
   val <- eval expr
   case val of
     (VBool True) -> execBlock block1
     (VBool False) -> execBlock block2
-    _ -> throwError "Condition is not a boolean"
 
 execStmt ((Gram.DeclFunc _ (Gram.FuncStmt _ (Gram.Ident funName) args retType body)):r) = do
-  -- check if function is already defined
-  maybeFun <- asks (Map.lookup funName . funs)
-  case maybeFun of
-    Just _ -> throwError $ "Function " ++ funName ++ " is already defined."
-    Nothing -> do
-      dEnv <- ask
-      let fun = Function { funName = funName, funArgs = args, funRetType = gtypeToType retType, funBody = body, declEnv = dEnv }
-      -- add function to environment
-      local (addFunToEnv funName fun) (execStmt r)
+  dEnv <- ask
+  let fun = Function { funName = funName, funArgs = args, funRetType = gtypeToType retType, funBody = body, declEnv = dEnv }
+  -- add function to environment
+  local (addFunToEnv funName fun) (execStmt r)
 
 
 execStmt ((Gram.DeclFunc _ (Gram.VoidFuncStmt _ (Gram.Ident funName) args body)):r) = do
-  -- check if function is already defined
-  maybeFun <- asks (Map.lookup funName . funs)
-  case maybeFun of
-    Just _ -> throwError $ "Function " ++ funName ++ " is already defined."
-    Nothing -> do
-      dEnv <- ask
-      let fun = Function { funName = funName, funArgs = args, funRetType = None, funBody = body, declEnv = dEnv }
-      -- add function to environment
-      local (addFunToEnv funName fun) (execStmt r)
+  dEnv <- ask
+  let fun = Function { funName = funName, funArgs = args, funRetType = None, funBody = body, declEnv = dEnv }
+  -- add function to environment
+  local (addFunToEnv funName fun) (execStmt r)
 
 
 execStmt ((Gram.VoidCall pos (Gram.Ident funName) exprs):r) = do
   _ <- eval (Gram.EApp pos (Gram.Ident funName) exprs)
   execStmt r
 
+
+execStmt ((Gram.While pos expr block):r) = do
+  val <- eval expr
+  case val of
+    (VBool True) -> do
+      loopRes <- execBlock block
+      case loopRes of
+        WasBreak -> execStmt r
+        _ -> execStmt ((Gram.While pos expr block):r)
+    (VBool False) -> execStmt r
+
+-- U mnie w FOR wartość zmiennej iteracyjnej zawsze zwiększa się o 1
+execStmt ((Gram.For pos (Gram.Ident var) expr1 expr2 block):r) = do
+  (VInt v1) <- eval expr1
+  (VInt v2) <- eval expr2
+  -- check if v1 <= v2
+  if v1 > v2
+    then execStmt r
+    else do
+      loc <- asks (Map.lookup var . env)
+      case loc of
+        -- If it is the next iteration (variable is in scope)
+        Just loc -> do 
+          modify (Map.insert loc (VInt v1))
+          loopRes <- execBlock block
+          case loopRes of
+            WasBreak -> execStmt r
+            _ -> execStmt ((Gram.For pos (Gram.Ident var) (Gram.ELitInt pos (v1+1)) (Gram.ELitInt pos v2) block):r)
+        -- If it is a new iteration (variable is not in scope)
+        Nothing -> do
+          loc <- newloc
+          modify (Map.insert loc (VInt v1))
+          loopRes <- local (addLocToEnv var loc Int) (execBlock block)
+          local (addLocToEnv var loc Int) (execStmt ((Gram.For pos (Gram.Ident var) (Gram.ELitInt pos (v1+1)) (Gram.ELitInt pos v2) block):r))
+
+execStmt ((Gram.Break pos):r) = do
+  return WasBreak
+
+execStmt ((Gram.Cont pos):r) = do
+  return WasContinue
+
+------ SHOW VAL ------
 showVal :: Val -> InterpretMonad ()
 showVal (VInt x) = do
-  liftIO $ putStrLn (show x)
+  liftIO $ putStr (show x)
   return ()
 
 showVal (VBool b) = do
-  liftIO $ putStrLn (show b)
+  liftIO $ putStr (show b)
   return ()
 
 showVal (VStr s) = do
-  liftIO $ putStrLn s
+  liftIO $ putStr s
   return ()
 
 showVal (VNone) = do
-  liftIO $ putStrLn "None"
+  liftIO $ putStr "None"
   return ()
+
+showVal (VList l) = do
+  -- [1, 2, 3]
+  liftIO $ putStr "["
+  showList l
+  liftIO $ putStr "]"
+  return ()
+  where
+    showList [] = return ()
+    showList [x] = showVal x
+    showList (x:xs) = do
+      showVal x
+      liftIO $ putStr ", "
+      showList xs
 
 -- - Execute Program
 execProgram :: Gram.Program -> InterpretMonad Val

@@ -1,0 +1,11 @@
+a = 5; 
+
+def func1() {
+    a = 10; # we don't declare new a, so the previous one is not shadowed and it's assignment
+    print(a); # 10
+}
+
+func1();
+print(a); # 10
+
+print("9_2_PASSED");
