@@ -1,0 +1,21 @@
+def f_a() {
+    print("1");
+    def f_b() {
+        print("2");
+        def f_c() {
+            print("4");
+        }
+        f_c();
+    }
+
+    def f_c() {
+        print("3");
+    }
+
+    f_c();
+    f_b();
+}
+
+f_a();
+
+print("13_1_PASSED");

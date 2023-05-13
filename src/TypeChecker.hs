@@ -273,16 +273,12 @@ checkStmts ((Gram.While pos expr (Gram.Blk pos2 bodyStmts)):r) = do
 checkStmts ((Gram.For pos (Gram.Ident var) expr1 expr2 (Gram.Blk pos2 bodyStmts)):r) = do
   eType1 <- checkExpr expr1
   eType2 <- checkExpr expr2
-  -- var should not be in scope
-  maybeVarType <- asks (Map.lookup var . types)
-  case maybeVarType of
-    Just _ -> throwError $ "Variable " ++ var ++ " is already defined"
-    Nothing -> do
-      case (eType1, eType2) of
-        (Int, Int) -> do
-          local (addImmutableVariableType var Int . inLoop True) (checkStmts bodyStmts)
-          checkStmts r
-        _ -> throwError $ "Type error in " ++ show pos ++ ": " ++ show eType1 ++ " and " ++ show eType2 ++ " are not integers"
+
+  case (eType1, eType2) of
+    (Int, Int) -> do
+      local (addImmutableVariableType var Int . inLoop True) (checkStmts bodyStmts)
+      checkStmts r
+    _ -> throwError $ "Type error in " ++ show pos ++ ": " ++ show eType1 ++ " and " ++ show eType2 ++ " are not integers"
 
 
 checkStmts ((Gram.Break pos):r) = do

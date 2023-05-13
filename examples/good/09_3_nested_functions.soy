@@ -1,0 +1,16 @@
+def func1() {
+    print("external!");
+}
+
+def func2() {
+    # shadowing
+    def func1() {
+        print("nested!");
+    }
+    func1();
+}
+
+func2();
+func1();
+
+print("9_3_PASSED");

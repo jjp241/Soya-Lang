@@ -1,0 +1,23 @@
+def by_value(a = int) {
+    a = a + 1;
+}
+
+def by_reference(ref a = int) {
+    a = a + 1;
+}
+
+a = 5;
+print("a before by_value:");
+print(a);
+by_value(a);
+print("a after by_value:");
+print(a);
+
+a = 5;
+print("a before by_reference:");
+print(a);
+by_reference(a);
+print("a after by_reference:");
+print(a);
+
+print("7_1_PASSED");

@@ -1,0 +1,11 @@
+i = 10;
+
+# i is shadowed, only step 1 is supported
+for (i = 0 to 3) {
+    print(i);
+}
+
+# here i is equal to 10 again
+print(i);
+
+print("8_1_PASSED");
