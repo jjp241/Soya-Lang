@@ -23,7 +23,6 @@ gtypeToType (Gram.Int _) = Int
 gtypeToType (Gram.Str _) = Str
 gtypeToType (Gram.Bool _) = Bool
 gtypeToType (Gram.List _ t) = List (gtypeToType t)
-gtypeToType (Gram.Tuple _ types) = Tuple (Prelude.map gtypeToType types)
 
 addVariableType :: String -> Type -> TEnv -> TEnv
 -- by default variables are mutable
@@ -125,6 +124,13 @@ checkExpr (Gram.EGetElem pos (Gram.Ident var) expr) = do
         else tError ("Cannot get element of list with index of type " ++ show exprType) pos
     _ -> tError (var ++ " is not a list") pos
 
+
+checkExpr (Gram.Len pos (Gram.Ident var)) = do
+  maybeVarType <- asks (Map.lookup var . types)
+  case maybeVarType of
+    Just (List _) -> return Int
+    _ -> tError (var ++ " is not a list") pos
+
 ----------------- Arguments -----------------
 getArgumentTypes :: [Gram.Arg] -> TypeMonad [(String, Type)]
 getArgumentTypes [] = return []
@@ -144,21 +150,9 @@ addArgumentTypesToEnv [] env = env
 addArgumentTypesToEnv ((name, typ):r) env = addArgumentTypesToEnv r (addVariableType name typ env)
 
 ----------------- Statements -----------------
-checkStmts :: [Gram.Stmt] -> TypeMonad ()
-checkStmts [] = do
-  -- if I'm in a function, check if it is a void function
-  maybeInFun <- asks in_function
-  case maybeInFun of
-    Nothing -> return ()
-    Just inFun -> do
-      funcPos <- fromJust <$> asks func_pos
-      maybeFunType <- asks (Map.lookup inFun . types)
-      case maybeFunType of
-        Nothing -> tError ("Unexpected error! No function " ++ inFun ++ " details found!") funcPos
-        Just (Fun retType _) -> do
-          if retType == None
-            then return ()
-            else tError ("Function " ++ inFun ++ " should return type " ++ (show retType) ++ " but returns nothing") funcPos
+-- Type to check if return statement is correct (if it exists)
+checkStmts :: [Gram.Stmt] -> TypeMonad Type
+checkStmts [] = return None
 
 
 checkStmts ((Gram.Empty _):r) = checkStmts r
@@ -179,7 +173,7 @@ checkStmts ((Gram.AssStmt pos target source):r) = do
           local (addVariableType var (gtypeToType gtype)) (checkStmts r)
         (Gram.DummyTarget _) -> do -- when target is DummyTarget
           tError ("cannot assign type " ++ (show gtype) ++ " to dummy target") pos
-        _ -> tError ("cannot assign type " ++ (show gtype) ++ " to " ++ (show target)) pos
+        _ -> tError ("cannot declare new variable of type " ++ (show gtype) ++ " to " ++ (show target)) pos
 
     -- right side: expression => Assignment to variable if exists, declaration of new variable if not
     (Gram.SourceExpr pos2 expr) -> do 
@@ -201,10 +195,23 @@ checkStmts ((Gram.AssStmt pos target source):r) = do
             Just False -> tError ("cannot assign to immutable variable " ++ var) pos
             -- create new variable
             Nothing -> local (addVariableType var exprType) (checkStmts r)
+        
+        (Gram.TargetList pos1 (Gram.Ident var) expr) -> do -- when target is a list and index
+          -- evaluate index
+          indexType <- checkExpr expr
+          if indexType == Int
+            then do
+              maybeVarType <- asks (Map.lookup var . types)
+              case maybeVarType of
+                Just (List t) -> do
+                  if t == exprType
+                    then checkStmts r
+                    else tError ("cannot assign type " ++ (show exprType) ++ " to " ++ var ++ " of type " ++ (show t)) pos
+                _ -> tError (var ++ " is not a list") pos
+            else tError ("cannot assign to list with index of non-int type " ++ (show indexType)) pos
+
         (Gram.DummyTarget _) -> do -- when target is DummyTarget, do nothing
           checkStmts r
-        _ -> tError ("cannot assign type " ++ (show exprType) ++ " to " ++ (show target)) pos
-
 
 -- return statement
 checkStmts ((Gram.Ret pos expr):r) = do
@@ -218,7 +225,7 @@ checkStmts ((Gram.Ret pos expr):r) = do
         Just (Fun retType _) -> do
           exprType <- checkExpr expr
           if retType == exprType
-            then return ()
+            then return retType
             else tError ("Cannot return type " ++ (show exprType) ++ " from function " ++ inFun ++ " of return type " ++ (show retType)) pos
 
 
@@ -240,16 +247,20 @@ checkStmts ((Gram.DeclFunc pos (Gram.FuncStmt _ (Gram.Ident funName) args retTyp
   argumentTypes <- getArgumentTypes args
   let funType = Fun (gtypeToType retType) (Prelude.map snd argumentTypes)
   -- check if function body is correct, addVariableType and inFunction, and addArgumentTypesToEnv
-  local (addVariableType funName funType . inFunction funName . funcPos pos . addArgumentTypesToEnv argumentTypes) (checkStmts bodyStmts)
-  local (addVariableType funName funType) (checkStmts r)
+  returned <- local (addVariableType funName funType . inFunction funName . funcPos pos . addArgumentTypesToEnv argumentTypes) (checkStmts bodyStmts)
+  if returned == (gtypeToType retType)
+    then local (addVariableType funName funType) (checkStmts r)
+    else tError ("Function " ++ funName ++ " of return type " ++ (show (gtypeToType retType)) ++ " returns " ++ (show returned)) pos
 
 
 checkStmts ((Gram.DeclFunc pos (Gram.VoidFuncStmt _ (Gram.Ident funName) args (Gram.Blk _ bodyStmts))):r) = do
   argumentTypes <- getArgumentTypes args
   let funType = Fun None (Prelude.map snd argumentTypes)
   -- check if function body is correct, addVariableType and inFunction, and addArgumentTypesToEnv
-  local (addVariableType funName funType . inFunction funName . funcPos pos . addArgumentTypesToEnv argumentTypes) (checkStmts bodyStmts)
-  local (addVariableType funName funType) (checkStmts r)
+  returned <- local (addVariableType funName funType . inFunction funName . funcPos pos . addArgumentTypesToEnv argumentTypes) (checkStmts bodyStmts)
+  if returned == None
+    then local (addVariableType funName funType) (checkStmts r)
+    else tError ("Void function " ++ funName ++ " cannot return " ++ (show returned)) pos
 
 
 checkStmts ((Gram.Cond pos expr (Gram.Blk _ bodyStmts)):r) = do
@@ -305,9 +316,28 @@ checkStmts ((Gram.Cont pos):r) = do
     else tError "Continue statement outside of while loop" pos
 
 
+checkStmts ((Gram.Grow pos (Gram.Ident var) expr):r) = do
+  maybeVarType <- asks (Map.lookup var . types)
+  case maybeVarType of
+    Just (List t) -> do
+      exprType <- checkExpr expr
+      if exprType == t
+        then checkStmts r
+        else tError ("Cannot grow list of type " ++ show t ++ " with element of type " ++ show exprType) pos
+    _ -> tError (var ++ " is not a list") pos
+
+
+checkStmts ((Gram.Cut pos (Gram.Ident var)):r) = do
+  maybeVarType <- asks (Map.lookup var . types)
+  case maybeVarType of
+    Just (List _) -> checkStmts r
+    _ -> tError (var ++ " is not a list") pos
+
 ----------------- Program -----------------
 checkProgram :: Gram.Program -> TypeMonad ()
-checkProgram (Gram.Prog pos stmts) = checkStmts stmts
+checkProgram (Gram.Prog pos stmts) = 
+  checkStmts stmts >> return ()
+  
 
 --- Run program
 runChecker :: Gram.Program -> Either String ()

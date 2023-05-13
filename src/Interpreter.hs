@@ -63,7 +63,6 @@ gtypeToType (Gram.Str _) = Str
 gtypeToType (Gram.Bool _) = Bool
 gtypeToType (Gram.List _ t) = List (gtypeToType t)
 
---
 
 --------- EXPRESSIONS ---------
 eval :: Gram.Expr -> InterpretMonad Val
@@ -73,6 +72,7 @@ eval (Gram.ELitTrue _) = return (VBool True)
 eval (Gram.ELitFalse _) = return (VBool False)
 eval (Gram.EString _ string) = return (VStr string)
 eval (Gram.ELitNone _) = return VNone
+
 
 eval (Gram.ERel _ e1 op e2) = do
   res1 <- eval e1
@@ -95,6 +95,7 @@ eval (Gram.ERel _ e1 op e2) = do
         Gram.EQU _ -> return $ VBool (ev1 == ev2)
         Gram.NE _ -> return $ VBool (ev1 /= ev2)
 
+
 eval (Gram.EAdd _ e1 op e2) = do
   res1 <- eval e1
   res2 <- eval e2
@@ -108,6 +109,7 @@ eval (Gram.EAdd _ e1 op e2) = do
         Gram.Plus _ -> return $ VStr (es1 ++ es2) -- + sign on str is concatenation
         Gram.Minus _ -> return $ VStr (Prelude.filter (`notElem` es2) es1) -- minus sign on strings = filter one strings with letters from second
 
+
 eval (Gram.EMul pos e1 op e2) = do
   ev1 <- eval e1
   ev2 <- eval e2
@@ -120,11 +122,13 @@ eval (Gram.EMul pos e1 op e2) = do
       Gram.Mod _ -> if n2 == 0
                       then throwError $ "[RUNTIME ERROR at " ++ show pos ++ "]: " ++ "Division by zero"
                       else return $ VInt (n1 `mod` n2)
-  
+
+
 eval (Gram.EVar _ (Gram.Ident id)) = do
   loc <- fromJust <$> asks (Map.lookup id . env)
   val <- fromJust <$> gets (Map.lookup loc)
   return val
+
 
 -- wywołanie funkcji
 eval (Gram.EApp l (Gram.Ident funname) exprs) = do
@@ -177,9 +181,11 @@ eval (Gram.EApp l (Gram.Ident funname) exprs) = do
           return (addLocToEnv id loc typ env)
         _ -> throwError $ "[RUNTIME ERROR at " ++ show pos ++ "]: " ++ "Cannot pass non-Identifier as reference argument"
 
+
 eval (Gram.ENewList _ exprs) = do
   vals <- Prelude.mapM eval exprs
   return (VList vals)
+
 
 eval (Gram.EGetElem pos (Gram.Ident var) expr) = do
   loc <- fromJust <$> asks (Map.lookup var . env)
@@ -188,6 +194,12 @@ eval (Gram.EGetElem pos (Gram.Ident var) expr) = do
   if i < 0 || i >= fromIntegral (Prelude.length l)
     then throwError $ "[RUNTIME ERROR at " ++ show pos ++ "]: " ++ "Index out of range"
     else return (l !! (fromIntegral i))
+
+
+eval (Gram.Len pos (Gram.Ident var)) = do
+  loc <- fromJust <$> asks (Map.lookup var . env)
+  (VList l) <- fromJust <$> gets (Map.lookup loc)
+  return (VInt (fromIntegral (Prelude.length l)))
 
 --------- STATEMENTS ---------
 
@@ -219,7 +231,11 @@ execStmt ((Gram.AssStmt pos target source):r) = do
       case target of
         (Gram.TargetId _ (Gram.Ident var)) -> do -- when target is an Identifier
           loc <- newloc
-          modify (Map.insert loc VNone)
+          -- default value is VNone for everything except lists, where it is []
+          let defValue = case gtype of
+                (Gram.List _ _) -> VList []
+                _ -> VNone
+          modify (Map.insert loc defValue)
           local (addLocToEnv var loc (gtypeToType gtype)) (execStmt r)
         (Gram.DummyTarget _) -> do -- when target is DummyTarget
           throwError $ "[RUNTIME ERROR at " ++ show pos ++ "]: " ++ "Cannot declare variable without name"
@@ -238,6 +254,17 @@ execStmt ((Gram.AssStmt pos target source):r) = do
           
             Just loc -> do -- in scope - assignment!
               modify (Map.insert loc val)
+              execStmt r
+
+        (Gram.TargetList _ (Gram.Ident var) expr) -> do -- when target is a list and index
+          loc <- fromJust <$> asks (Map.lookup var . env)
+          (VList l) <- fromJust <$> gets (Map.lookup loc)
+          (VInt i) <- eval expr
+          if i < 0 || i >= fromIntegral (Prelude.length l)
+            then throwError $ "[RUNTIME ERROR at " ++ show pos ++ "]: " ++ "Index out of range"
+            else do
+              let (before, _:after) = Prelude.splitAt (fromIntegral i) l
+              modify (Map.insert loc (VList (before ++ [val] ++ after)))
               execStmt r
       
         (Gram.DummyTarget _) -> do -- when target is DummyTarget
@@ -328,11 +355,32 @@ execStmt ((Gram.For pos (Gram.Ident var) expr1 expr2 block):r) = do
         WasReturn v -> return (WasReturn v)
         _ -> execStmt ((Gram.For pos (Gram.Ident var) (Gram.ELitInt pos (v1+1)) (Gram.ELitInt pos v2) block):r)
 
+
 execStmt ((Gram.Break pos):r) = do
   return WasBreak
 
+
 execStmt ((Gram.Cont pos):r) = do
   return WasContinue
+
+
+execStmt ((Gram.Grow pos (Gram.Ident var) expr):r) = do
+  val <- eval expr
+  loc <- fromJust <$> asks (Map.lookup var . env)
+  (VList l) <- fromJust <$> gets (Map.lookup loc)
+  modify (Map.insert loc (VList (val:l)))
+  execStmt r
+
+
+execStmt ((Gram.Cut pos (Gram.Ident var)):r) = do
+  loc <- fromJust <$> asks (Map.lookup var . env)
+  (VList l) <- fromJust <$> gets (Map.lookup loc)
+  if Prelude.null l
+    then throwError $ "[RUNTIME ERROR at " ++ show pos ++ "]: " ++ "Cannot cut from empty list"
+    else do
+      modify (Map.insert loc (VList (Prelude.tail l)))
+      execStmt r
+
 
 ------ SHOW VAL ------
 showVal :: Val -> InterpretMonad ()
@@ -378,6 +426,6 @@ runInterpreter prog =
     in do
       (res, a) <- runStateT (runReaderT (runExceptT (execProgram prog)) env) st;
       case res of
-        Left e -> putStrLn $ "runtime error: " ++ e
+        Left e -> putStrLn e
         Right _ -> return ()
       

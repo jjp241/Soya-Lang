@@ -1,0 +1,25 @@
+def take_even_elements(a = [int]) -> [int] {
+    # takes only even elemenst from a list
+    result = [int];
+
+    for (i = 0 to (len(a) - 1)) {
+        if(a[i] mod 2 == 0) {
+            grow(result, a[i]);
+        }
+    }
+
+    return result;
+}
+
+x = [10, 5, 2, 3, 9, 8];
+print(take_even_elements(x)); # [2, 8]
+
+
+# list as reference 
+def modify_list(ref a = [int]) {
+    a[0] = 100;
+}
+
+x = [1, 2, 3];
+modify_list(x);
+print(x); # [100, 2, 3]
