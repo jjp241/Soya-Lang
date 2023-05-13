@@ -17,10 +17,28 @@ White='\033[0;37m'        # White
 echo "-------------- GOOD EXAMPLES: --------------"
 for file in examples/good/*; do
     # print purple file name
-    echo -e "${Purple}$file${Color_Off}"
+    echo -e "${Green}$file${Color_Off}"
 
     # get error of running src/interpreter on the file
     result=$(src/interpreter "$file" 2>&1)
+
+    echo "$result"
+    # Check if the compilation was successful or not
+    # if [[ $result == *"Successful"* ]]; then
+    #     echo -e "$file ${Green} OK ${Color_Off}"
+    # else
+    #     echo -e "$file ${Red} ERROR ${Color_Off}"
+    # fi
+done
+
+# Loop through each file in examples/good directory
+echo "-------------- BAD EXAMPLES: --------------"
+for file in examples/bad/*; do
+    # print purple file name
+    echo -e "${Red}$file${Color_Off}"
+
+    # get error of running src/interpreter on the file
+    result=$(src/interpreter "$file")
 
     echo "$result"
     # Check if the compilation was successful or not

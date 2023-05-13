@@ -1,6 +1,0 @@
-3 + 3; # ERROR: no empty expressions as statement:
-# instead:
-_ = 3 + 3; # OK: empty assignment
-
-def f(x = int) -> int { return x + 2 }
-f(10); # OK: deftion calls as statements are tolerated and the return value is ignored
