@@ -9,7 +9,7 @@ all: interpreter
 interpreter: 
 	$(BNFC_PATH) -m --functor -o $(SOYA_DIR) soya.cf
 	make -C $(SOYA_DIR)
-	ghc -i.:$(SOYA_DIR) -o $@ $^
+	ghc -i.:Soya Main.hs -o interpreter
 
 clean:
 	rm -f *.o *.hi $(INTERPRETER)
