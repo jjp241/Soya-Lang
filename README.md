@@ -30,7 +30,7 @@ Soya has bean (pun intended) created for JPP course @ MIM UW as **statically typ
   ```
 
 
-- **Pass by reference/variable**
+- **Pass by value or reference**
 
   ```python
   # note the ref keyword
