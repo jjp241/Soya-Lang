@@ -1,9 +1,7 @@
 # Soya 🌱
 #### 💚 Suitable for Vegans! 💚
 
-You like Python but also consider yourself a *{bracket-head}*? Try some Soya, seriously.  (psst... there are some semicolons as well).
-
-Soya has bean (pun intended) created for JPP course @ MIM UW as dynamically typed language with static binding, a cross between Python and C++. 
+Soya has bean (pun intended) created for JPP course @ MIM UW as **statically typed** language with static binding, with syntax inspired by Python and C++.
 
 ### Contains:
 
@@ -12,10 +10,10 @@ Soya has bean (pun intended) created for JPP course @ MIM UW as dynamically type
   It makes Soya easy to digest
 
   ```PYTHON
-  x = 3; # it's a new int!
-  y = str; # oldschool way if you have to!
+  y = int; # declaration of new variable
+  y = 3; # assignment! 
   
-  x = 6; # it's assignment!
+  x = "hej"; # assignment without declaration? No problem :) now x is declared
   ```
 
 
@@ -24,7 +22,7 @@ Soya has bean (pun intended) created for JPP course @ MIM UW as dynamically type
   Soya is cool with that by default.
   
   ```python
-  func multiply(a = int, b = 2) {
+  def multiply(a = int, b = 2) -> int {
       return a * b;
   }
   
@@ -32,27 +30,11 @@ Soya has bean (pun intended) created for JPP course @ MIM UW as dynamically type
   ```
 
 
-- **Tuples :snake:** 
-
-  *yes, I see you all pythonistas!* :point_up:
-
-  ```python
-  tup = t(1, t("hello", "world"));
-  
-  t(_, msg) = tup; # unpacking is vegan friendly
-  
-  print(msg); # 'hello', 'world'
-  
-  msg[0] = "yup, tuples are mutable";
-  ```
-
 - **Pass by reference/variable**
-
-  so... all that python stuff was a lie?
 
   ```python
   # note the ref keyword
-  func modify_some_stuff(ref stuff = int, value = 3) {
+  def modify_some_stuff(ref stuff = int, value = 3) {
       stuff = value;
   }
   
@@ -69,22 +51,30 @@ Soya has bean (pun intended) created for JPP course @ MIM UW as dynamically type
    uninitialized = int;
    
    print(uninitialized); # None
-   print(isna uninitialized); # True
    
-   func weird_func(a = int, b = int) {
-       return t(a, b);
+   def weird_func(a = int, b = int) -> [int]{
+       return [a, b];
    }
    
-   print(weird_func()); # (None, None)
+   print(weird_func()); # [None, None]
    ```
-
+  
 - **Static type List**:
 
   it was just too hard to implement a dynamic list tbh
 
   ```python
   a = [1, 2, 3]; # 3 element list of ints
+  a[1] = 5; # assignment on list 
+  
   b = [str]; # empty list of strings
+  
+  # more dimensions!
+  c = [[int]];
+  c = [[6, 7], [3, 4, 5]];
+  
+  grow (c[0], 8); # add 8 to the first list
+  print(c); # [[6, 7, 8], [3, 4, 5]]
   ```
 
 - **Soya doesn't float!**
@@ -93,41 +83,61 @@ Soya has bean (pun intended) created for JPP course @ MIM UW as dynamically type
   print(5 / 3); # 1
   ```
 
+- **Static type-checking :sunglasses:**
 
+  ```python
+  def f(a = int) -> int {
+      return a * 2;
+  }
+  
+  f("arg"); # oh hell naw
+  
+  # [TYPE ERROR at Just (5,1)]: Wrong types of arguments in f: [Str] instead of [Int]
+  ```
+
+For more fun, **jump to examples/good**
 
 ### Make it run! :gear:
 
-On `students` run `./compile_language.sh` and then `./parse_checker.sh` 
+On `students` run 
+
+```
+cd src
+make
+```
+
+And then test examples with `./check_examples.sh` 
 
 
 ### Detailed ingredients :notebook:
 
 ```
-01 (trzy typy)
-02 (literały, arytmetyka, porównania)
-03 (zmienne, przypisanie)
-04 (print)
-05 (while, if)
-06 (funkcje lub procedury, rekurencja)
-07 (przez zmienną / przez wartość)
-08 (zmienne read-only w pętli for)
-09 (przesłanianie i statyczne wiązanie)
-10 (obsługa błędów wykonania)
-11 (funkcje zwracające wartość)
+Na 15 punktów:
+1. Co najmniej trzy typy wartości: int, bool i string (to znaczy if 2+2 then _ parsuje się, ale wyrażenie ma niepoprawny typ).
+2. Literały, arytmetyka, porównania
+3. Zmienne, operacja przypisania
+4. Jawne wypisywanie wartości na wyjście (print)
+5. while, if, else
+6. Funkcje lub procedury bez zagnieżdżania, rekurencja
+7. Co najmniej dwa sposoby przekazywania parametrów (wartość/zmienna)
+8. Zmienne read-only w pętli for
 
-13 (2) (funkcje zagnieżdżone ze statycznym wiązaniem)
-14 (1/2) (rekordy/listy/tablice/tablice wielowymiarowe)
-15 (2) (krotki z przypisaniem)
-16 (1) (break, continue)
+Na 20 punktów:
+9. Przesłananie identyfikatorów ze statycznym ich wiązaniem, zagnieżdżone procedury / funkcje
+10. Obsługa błędów wykonania
+11. Funkcje przyjmujące i zwracające wartość dowolnych obsługiwanych typów
 
-EXTRA:
-17 (domyślne wartości argumentów w funkcjach)
-18 (domyślanie się typu zmiennej i obsługa None)
-19 (operator _ ignorujący wynik przypisania)
+Do 30 punktów:
+12. Statyczne typowanie - typechecker (4pkt)
+13. Dowolnie zagnieżdżone definicje funkcji/procedur z zachowaniem statycznego wiązania identyfikatorów (2pkt)
+14. Listy (1pkt)
+16. Przerywanie pętli: break i continue (1pkt)
 
-Oczekiwana liczba punktów
-27 + EXTRA = 30
+Ekstra:
+20. Domyślne argumenty funkcji
+21. Tworzenie zmiennej podczas przypisania jeśli jeszcze nie istnieje 
+22. Operacje na listach: grow oraz cut
+
+Łącznie:
+20 + 4 + 2 + 1 + 1 + EKSTRA = 28 + EKSTRA to około 30 pkt
 ```
-
-
-
