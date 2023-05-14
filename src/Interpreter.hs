@@ -44,11 +44,9 @@ data Val
  | WasReturn Val
  deriving (Show, Eq)
 
--- Unpack Val
 unpackInt :: Val -> Integer
 unpackInt (VInt i) = i
 
--- typeof
 typeof :: Val -> Type
 typeof (VInt _) = Int
 typeof (VBool _) = Bool
@@ -56,7 +54,6 @@ typeof (VStr _) = Str
 typeof (VNone) = None
 typeof (VList types) = List (typeof (Prelude.head types))
 
--- Gram.Type -> Type
 gtypeToType :: Gram.Type -> Type
 gtypeToType (Gram.Int _) = Int
 gtypeToType (Gram.Str _) = Str
@@ -130,7 +127,7 @@ eval (Gram.EVar _ (Gram.Ident id)) = do
   return val
 
 
--- wywołanie funkcji
+-- Run function
 eval (Gram.EApp l (Gram.Ident funname) exprs) = do
   fun <- fromJust <$> asks (Map.lookup funname . funs)
 
@@ -162,7 +159,7 @@ eval (Gram.EApp l (Gram.Ident funname) exprs) = do
       return (addLocToEnv id loc (gtypeToType gtype) env)
     addArgsToEnv ((Gram.ArValue _ (Gram.Ident id) defExpr, givenExpr):r) = do
       loc <- newloc
-      val <- eval givenExpr -- TODO trzeba sprawdzic typy
+      val <- eval givenExpr
       defVal <- eval defExpr
       let typ = typeof defVal
       if val == VNone
@@ -206,28 +203,31 @@ eval (Gram.Len pos (Gram.Ident var)) = do
 execBlock :: Gram.Block -> InterpretMonad Val
 execBlock (Gram.Blk _ stmts) = execStmt stmts
 
+
 execStmt :: [Gram.Stmt] -> InterpretMonad Val
 execStmt [] = return VNone
 execStmt ((Gram.Empty _):r) = execStmt r
 
--- Assume, that return is always inside function
+
+-- Assume, that return is always inside function (TypeChecker checks that)
 execStmt ((Gram.Ret _ expr):r) = do
   result <- eval expr
   return (WasReturn result)
 
+
 execStmt ((Gram.VRet _):r) = return VNone
+
 
 execStmt ((Gram.Print _ e):r) = do
   result <- eval e
   showVal result
-  -- add newline
   liftIO $ putStrLn ""
   execStmt r
 
+
 execStmt ((Gram.AssStmt pos target source):r) = do
-  -- right side: type => Declaration of new variable
   case source of
-    (Gram.SourceType _ gtype) -> do 
+    (Gram.SourceType _ gtype) -> do -- right side: type (Declaration of new variable)
       case target of
         (Gram.TargetId _ (Gram.Ident var)) -> do -- when target is an Identifier
           loc <- newloc
@@ -240,7 +240,7 @@ execStmt ((Gram.AssStmt pos target source):r) = do
         (Gram.DummyTarget _) -> do -- when target is DummyTarget
           throwError $ "[RUNTIME ERROR at " ++ show pos ++ "]: " ++ "Cannot declare variable without name"
 
-    (Gram.SourceExpr _ expr) -> do 
+    (Gram.SourceExpr _ expr) -> do -- right side: expression (Assignment or declaration)
       val <- eval expr
       case target of
         (Gram.TargetId _ (Gram.Ident var)) -> do -- when target is an Identifier
@@ -278,7 +278,7 @@ execStmt ((Gram.BStmt _ block):r) = do
     WasReturn v -> return v
     _ -> execStmt r
 
--- Cond
+
 execStmt ((Gram.Cond _ expr block):r) = do
   val <- eval expr
   case val of
@@ -290,6 +290,7 @@ execStmt ((Gram.Cond _ expr block):r) = do
         WasBreak -> return WasBreak
         _ -> execStmt r
     (VBool False) -> execStmt r
+
 
 execStmt ((Gram.CondElse _ expr block1 block2):r) = do
   val <- eval expr
@@ -308,6 +309,7 @@ execStmt ((Gram.CondElse _ expr block1 block2):r) = do
         WasContinue -> return WasContinue
         WasBreak -> return WasBreak
         _ -> execStmt r
+
 
 execStmt ((Gram.DeclFunc _ (Gram.FuncStmt _ (Gram.Ident funName) args retType body)):r) = do
   dEnv <- ask
@@ -339,11 +341,10 @@ execStmt ((Gram.While pos expr block):r) = do
         _ -> execStmt ((Gram.While pos expr block):r)
     (VBool False) -> execStmt r
 
--- U mnie w FOR wartość zmiennej iteracyjnej zawsze zwiększa się o 1
+
 execStmt ((Gram.For pos (Gram.Ident var) expr1 expr2 block):r) = do
   (VInt v1) <- eval expr1
   (VInt v2) <- eval expr2
-  -- check if v1 <= v2
   if v1 > v2
     then execStmt r
     else do
@@ -401,7 +402,6 @@ showVal (VNone) = do
   return ()
 
 showVal (VList l) = do
-  -- [1, 2, 3]
   liftIO $ putStr "["
   showList l
   liftIO $ putStr "]"
@@ -413,6 +413,7 @@ showVal (VList l) = do
       showVal x
       liftIO $ putStr ", "
       showList xs
+
 
 -- - Execute Program
 execProgram :: Gram.Program -> InterpretMonad Val
