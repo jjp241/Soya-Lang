@@ -19,7 +19,7 @@ for file in examples/good/*; do
     echo -e "${Green}$file${Color_Off}"
 
     # get error of running src/interpreter on the file
-    result=$(src/interpreter "$file" 2>&1)
+    result=$(./interpreter "$file" 2>&1)
 
     echo "$result"
 done
@@ -30,7 +30,7 @@ for file in examples/bad/*; do
     echo -e "${Red}$file${Color_Off}"
 
     # get error of running src/interpreter on the file
-    result=$(src/interpreter "$file")
+    result=$(./interpreter "$file")
 
     echo "$result"
 done

@@ -99,14 +99,8 @@ For more fun, **jump to examples/good**
 
 ### Make it run! :gear:
 
-On `students` run 
-
-```
-cd src
-make
-```
-
-And then test examples with `./check_examples.sh` 
+On `students` run `make`
+And test examples with `./check_examples.sh` 
 
 
 ### Detailed ingredients :notebook:
